@@ -1,0 +1,51 @@
+name: Manual Docker Build & Push
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (for env vars only)
+        uses: actions/checkout@v4
+
+      - name: Clone UNM-Server repo
+        run: |
+          git clone https://github.com/IamFurina/UNM-Server.git
+          cd UNM-Server
+          echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Replace Dockerfile with pnpm version
+        run: |
+          cat <<EOF > UNM-Server/Dockerfile
+          FROM node:lts-alpine
+          RUN npm install -g pnpm
+          WORKDIR /src
+          COPY package.json ./
+          COPY pnpm-lock.yaml ./
+          RUN pnpm install
+          COPY . .
+          EXPOSE 5678
+          CMD ["pnpm", "start"]
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image (multi-platform)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./UNM-Server
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            wudiming/unm-server:latest
+            wudiming/unm-server:${{ env.COMMIT_SHA }}
