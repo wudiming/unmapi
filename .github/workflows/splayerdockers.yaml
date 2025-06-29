@@ -1,0 +1,114 @@
+name: SPlayer-pro Docker Build & Push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 获取上游 SPlayer 最新 Release 版本号
+        id: get_release
+        run: |
+          tag=$(curl -s https://api.github.com/repos/IamFurina/SPlayer/releases/latest | jq -r .tag_name)
+          echo "RELEASE_TAG=$tag" >> $GITHUB_ENV
+
+      - name: Checkout (for metadata only)
+        uses: actions/checkout@v4
+
+      - name: Clone SPlayer repo
+        run: |
+          git clone https://github.com/IamFurina/SPlayer.git
+          cd SPlayer
+
+      - name: 设置并修改 .env 文件
+        working-directory: ./SPlayer
+        run: |
+          cp -p .env.example .env
+          python3 <<"EOF"
+          import re
+          from pathlib import Path
+
+          replacements = {
+              'RENDERER_VITE_SERVER_URL': {
+                  'value': 'http://neteasecloudmusicapi:3000',
+                  'pattern': r'^(RENDERER_VITE_SERVER_URL\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
+              },
+              'VITE_UNM_API': {
+                  'value': 'http://unm-server:5678',
+                  'pattern': r'^(VITE_UNM_API\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
+              },
+              'RENDERER_VITE_SITE_URL': {
+                  'value': 'http://localhost',
+                  'pattern': r'^(RENDERER_VITE_SITE_URL\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
+              }
+          }
+
+          env_file = Path('.env')
+          content = env_file.read_text()
+          modified = 0
+
+          for key, cfg in replacements.items():
+              pattern = re.compile(cfg['pattern'], re.MULTILINE | re.IGNORECASE)
+              new_content, count = re.subn(pattern, lambda m: f"{m.group(1)}{cfg['value']}{m.group(5) or ''}", content)
+              if count > 0:
+                  content = new_content
+                  modified += 1
+              else:
+                  content += f"\n{key}={cfg['value']}"
+                  modified += 1
+
+          if modified != 3:
+              raise ValueError(f"应修改3个配置项，实际修改{modified}")
+
+          content = '\n'.join(line.rstrip() for line in content.splitlines())
+          env_file.write_text(content + '\n')
+          EOF
+
+      - name: 替换 Dockerfile 为支持 pnpm 构建版本
+        run: |
+          cat <<EOF > SPlayer/Dockerfile
+          FROM node:18-alpine AS builder
+
+          RUN apk update && apk add --no-cache git && npm install -g pnpm
+
+          WORKDIR /app
+          COPY package*.json ./
+          COPY pnpm-lock.yaml ./
+
+          RUN pnpm install
+          COPY . .
+
+          COPY .env .env
+
+          RUN pnpm build
+
+          # nginx stage
+          FROM nginx:1.25.3-alpine-slim AS app
+
+          COPY --from=builder /app/out/renderer /usr/share/nginx/html
+          COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
+
+          EXPOSE 80
+          CMD ["nginx", "-g", "daemon off;"]
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker Image (multi-platform)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./SPlayer
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            wudiming/splayer-pro:latest
+            wudiming/splayer-pro:${{ env.RELEASE_TAG }}
