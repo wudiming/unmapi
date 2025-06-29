@@ -35,11 +35,10 @@ jobs:
 
           COPY . .
 
-          COPY nginx.conf /etc/nginx/conf.d/default.conf
           COPY entrypoint.sh /entrypoint.sh
           RUN chmod +x /entrypoint.sh
 
-          EXPOSE 7899
+          EXPOSE 80
           ENTRYPOINT ["/entrypoint.sh"]
           EOF
 
@@ -49,7 +48,6 @@ jobs:
 
           echo "[ENTRYPOINT] 构建前端中..."
 
-          # fallback to .env.example if .env not mounted
           if [ ! -f .env ]; then
             echo "[ENTRYPOINT] .env 不存在，复制 .env.example"
             cp .env.example .env
@@ -67,9 +65,22 @@ jobs:
           fi
 
           echo "[ENTRYPOINT] 准备 nginx 资源目录..."
-          mkdir -p /usr/share/nginx/html
+          rm -rf /usr/share/nginx/html/*
+          cp -r out/renderer/* /usr/share/nginx/html/
 
-          mv out/renderer/* /usr/share/nginx/html/
+          echo "[ENTRYPOINT] 写入 nginx 配置..."
+          cat <<NGINX > /etc/nginx/http.d/default.conf
+          server {
+              listen 80;
+              server_name localhost;
+
+              location / {
+                  root /usr/share/nginx/html;
+                  index index.html;
+                  try_files \$uri \$uri/ /index.html;
+              }
+          }
+          NGINX
 
           echo "[ENTRYPOINT] 启动 nginx..."
           exec nginx -g "daemon off;"
