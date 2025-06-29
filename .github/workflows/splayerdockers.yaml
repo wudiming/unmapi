@@ -14,15 +14,13 @@ jobs:
           tag=$(curl -s https://api.github.com/repos/IamFurina/SPlayer/releases/latest | jq -r .tag_name)
           echo "RELEASE_TAG=$tag" >> $GITHUB_ENV
 
-      - name: Checkout (for metadata only)
+      - name: Checkout（用于 GitHub Actions metadata）
         uses: actions/checkout@v4
 
-      - name: Clone SPlayer repo
-        run: |
-          git clone https://github.com/IamFurina/SPlayer.git
-          cd SPlayer
+      - name: 克隆 SPlayer 源仓库
+        run: git clone https://github.com/IamFurina/SPlayer.git
 
-      - name: 设置并修改 .env 文件
+      - name: 设置并修改 .env 文件（适配 Traefik 域名）
         working-directory: ./SPlayer
         run: |
           cp -p .env.example .env
@@ -32,15 +30,15 @@ jobs:
 
           replacements = {
               'RENDERER_VITE_SERVER_URL': {
-                  'value': 'http://neteasecloudmusicapi:3000',
+                  'value': 'http://api.localhost',
                   'pattern': r'^(RENDERER_VITE_SERVER_URL\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
               },
               'VITE_UNM_API': {
-                  'value': 'http://unm-server:5678',
+                  'value': 'http://unm.localhost',
                   'pattern': r'^(VITE_UNM_API\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
               },
               'RENDERER_VITE_SITE_URL': {
-                  'value': 'http://localhost',
+                  'value': 'http://music.localhost',
                   'pattern': r'^(RENDERER_VITE_SITE_URL\s*=\s*)(["\']?)(.*?)(["\']?)(\s*#.*)?$'
               }
           }
@@ -84,7 +82,6 @@ jobs:
 
           RUN pnpm build
 
-          # nginx stage
           FROM nginx:1.25.3-alpine-slim AS app
 
           COPY --from=builder /app/out/renderer /usr/share/nginx/html
@@ -110,5 +107,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            wudiming/splayer-pro:latest
-            wudiming/splayer-pro:${{ env.RELEASE_TAG }}
+            wudiming/prosp:latest
+            wudiming/prosp:${{ env.RELEASE_TAG }}
