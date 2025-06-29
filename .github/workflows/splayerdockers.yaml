@@ -69,7 +69,7 @@ jobs:
           echo "[ENTRYPOINT] 准备 nginx 资源目录..."
           mkdir -p /usr/share/nginx/html
 
-          cp -r out/renderer/* /usr/share/nginx/html/
+          mv -r out/renderer/* /usr/share/nginx/html/
 
           echo "[ENTRYPOINT] 启动 nginx..."
           exec nginx -g "daemon off;"
