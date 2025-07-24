@@ -1,4 +1,4 @@
-name: NeteaseCloudMusicAPI Docker Build & Push 
+name: NeteaseCloudMusicAPI Docker Build & Push
 
 on:
   workflow_dispatch:
@@ -11,15 +11,15 @@ jobs:
       - name: Checkout (for env only)
         uses: actions/checkout@v4
 
-      - name: Clone NeteaseCloudMusicAPI
+      - name: Clone NeteaseCloudMusicApiReborn API
         run: |
-          git clone https://github.com/IamFurina/NeteaseCloudMusicAPI.git
-          cd NeteaseCloudMusicAPI
+          git clone https://github.com/NeteaseCloudMusicApiReborn/api.git
+          cd api
           echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Replace Dockerfile with optimized version
         run: |
-          cat <<EOF > NeteaseCloudMusicAPI/Dockerfile
+          cat <<EOF > api/Dockerfile
           FROM node:lts-alpine
 
           RUN apk add --no-cache tini
@@ -28,7 +28,8 @@ jobs:
 
           COPY . .
 
-          RUN yarn --network-timeout=100000
+          RUN npm install -g pnpm
+          RUN pnpm install
 
           EXPOSE 3000
 
@@ -49,7 +50,7 @@ jobs:
       - name: Build and Push Docker Image (multi-platform)
         uses: docker/build-push-action@v5
         with:
-          context: ./NeteaseCloudMusicAPI
+          context: ./api
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
