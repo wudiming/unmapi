@@ -13,13 +13,13 @@ jobs:
 
       - name: Clone NeteaseCloudMusicApiReborn API
         run: |
-          git clone https://github.com/NeteaseCloudMusicApiReborn/api.git
-          cd api
+          git clone https://github.com/neteasecloudmusicapienhanced/api-enhanced.git
+          cd api-enhanced
           echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Replace Dockerfile with optimized version
         run: |
-          cat <<EOF > api/Dockerfile
+          cat <<EOF > api-enhanced/Dockerfile
           FROM node:lts-alpine
 
           RUN apk add --no-cache tini
@@ -50,7 +50,7 @@ jobs:
       - name: Build and Push Docker Image (multi-platform)
         uses: docker/build-push-action@v5
         with:
-          context: ./api
+          context: ./api-enhanced
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
